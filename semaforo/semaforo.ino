@@ -22,7 +22,7 @@ SoftwareSerial serialAT;
 
 #ifdef WIFI
   #include <ESP8266WiFi.h>
-  #define WIFI_NAME "DONALD TRUMP"
+  #define WIFI_NAME "Donald Trump"
   #define WIFI_PASS "002393929"
 #endif
 
@@ -151,14 +151,27 @@ void IRAM_ATTR TimerHandler()
   }
 }
 
-#define TIMER_INTERVAL_MS        1000
+#define TIMER_INTERVAL_MS        1
 #define TIMER_FREQ_HZ        (float) (1000.0f / TIMER_INTERVAL_MS)
 
 unsigned long lastMillis;
+
+#define verde 11
+#define amarelo 22
+#define vermelho 33
+#define g_pin 14
+#define y_pin 12
+#define r_pin 13
+
+
 void setup() {
 
   Serial.begin(9600);  //apensar para debug...  
   
+  pinMode(g_pin,OUTPUT);
+  pinMode(y_pin,OUTPUT);
+  pinMode(r_pin,OUTPUT);
+
   if (ITimer.attachInterruptInterval(TIMER_INTERVAL_MS * 1000, TimerHandler)) {
     lastMillis = millis();
     Serial.print(F("Starting  ITimer OK, millis() = ")); Serial.println(lastMillis);
@@ -203,7 +216,7 @@ void setup() {
   valor = 0;
 }
 
-
+String a;
 
 void loop() {        
   if(estado == 1){
@@ -216,18 +229,34 @@ void loop() {
   
     Serial.print("Valor Medido: ");
     Serial.println(valor);
+
     #ifdef LORA
       enviarcomandoAT(comando_send_com_valor,strlen(comando_send_com_valor)); //enviar valor via Uplink...  
       enviarcomandoAT(CMD_AT_RECV,strlen(CMD_AT_RECV)); //existe algum Downlink a ser processado?
     #endif
 
+    a = Serial.read();
+
     #ifdef WIFI
-    //https://new-toyota.vercel.app/
+      if(a == "g"){
+        digitalWrite(g_pin, HIGH);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, LOW);
+      }else if(a == "y"){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, HIGH);
+        digitalWrite(r_pin, LOW);
+      }else if(a == "r"){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, HIGH);
+      }
     #endif
 
     valor++;
     
-    //https://arduino.esp8266.com/stable/package_esp8266com_index.json
+    //delay(20000); //aguardar 20s (tempo mínimo entre transmissoes AU915 - se puder ser um intervalo maior deve-se adotar...) para a próxima transmissão
+    //Ao invés de delay() o ideal é lidar com interrupção de tempo, watchdogs e recurso de millis(), pois o delay() interrompe o microcontrolador de fazer outra coisa (ex: realizar coleta de valores dos sensores...)
   }
 }
   
