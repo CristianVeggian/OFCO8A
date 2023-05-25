@@ -1,3 +1,5 @@
+#include <ESP8266HTTPClient.h>
+
 #include <SoftwareSerial.h>
 #include "ESP8266TimerInterrupt.h"
 #include "ESP8266_ISR_Timer.h"
@@ -25,6 +27,7 @@ SoftwareSerial serialAT;
   #define WIFI_NAME "Donald Trump"
   #define WIFI_PASS "002393929"
 #endif
+//iot.coenc.ap.utfpr.edu.br
 
 const byte tx=12; //D6 impresso na placa
 const byte rx=13; //D7 impresso na placa
@@ -151,7 +154,7 @@ void IRAM_ATTR TimerHandler()
   }
 }
 
-#define TIMER_INTERVAL_MS        1
+#define TIMER_INTERVAL_MS        1000
 #define TIMER_FREQ_HZ        (float) (1000.0f / TIMER_INTERVAL_MS)
 
 unsigned long lastMillis;
@@ -162,6 +165,8 @@ unsigned long lastMillis;
 #define g_pin 14
 #define y_pin 12
 #define r_pin 13
+#define botao 16
+#define site 5 //debug, vai recolher a informação do site
 
 
 void setup() {
@@ -171,6 +176,8 @@ void setup() {
   pinMode(g_pin,OUTPUT);
   pinMode(y_pin,OUTPUT);
   pinMode(r_pin,OUTPUT);
+  pinMode(botao,INPUT);
+  pinMode(site,INPUT);
 
   if (ITimer.attachInterruptInterval(TIMER_INTERVAL_MS * 1000, TimerHandler)) {
     lastMillis = millis();
@@ -216,7 +223,7 @@ void setup() {
   valor = 0;
 }
 
-String a;
+char a = 'g';
 
 void loop() {        
   if(estado == 1){
@@ -234,29 +241,80 @@ void loop() {
       enviarcomandoAT(comando_send_com_valor,strlen(comando_send_com_valor)); //enviar valor via Uplink...  
       enviarcomandoAT(CMD_AT_RECV,strlen(CMD_AT_RECV)); //existe algum Downlink a ser processado?
     #endif
-
-    a = Serial.read();
-
+    
     #ifdef WIFI
-      if(a == "g"){
-        digitalWrite(g_pin, HIGH);
-        digitalWrite(y_pin, LOW);
-        digitalWrite(r_pin, LOW);
-      }else if(a == "y"){
-        digitalWrite(g_pin, LOW);
-        digitalWrite(y_pin, HIGH);
-        digitalWrite(r_pin, LOW);
-      }else if(a == "r"){
-        digitalWrite(g_pin, LOW);
-        digitalWrite(y_pin, LOW);
-        digitalWrite(r_pin, HIGH);
+      if ((WiFi.status() == WL_CONNECTED)) {
+
+      WiFiClient client;
+      HTTPClient http;
+  
+      Serial.print("[HTTP] begin...\n");
+      // configure traged server and url
+      http.begin(client, "https://projeto-toyota.vercel.app/dashboardmaquinas");  // HTTP
+      http.addHeader("Content-Type", "application/json");
+  
+      Serial.print("[HTTP] POST...\n");
+      // start connection and send HTTP header and body
+      switch(a){
+        case 'g':
+          int httpCode = http.POST("{\"status\": \"operando\"}");
+        break;
+        case 'y':
+          int httpCode = http.POST("{\"status\": \"inativo\"}");
+        break;
+        case 'r':
+          int httpCode = http.POST("{\"status\": \"parado\"}");
+        break;
       }
+        
+      //retornar o que enviou///////////
+      //enviar apenas json
+      // httpCode will be negative on error
+      if (httpCode > 0) {
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+  
+        // file found at server
+        if (httpCode == HTTP_CODE_OK) {
+          const String& payload = http.getString();
+          Serial.println("received payload:\n<<");
+          Serial.println(payload);
+          Serial.println(">>");
+        }
+      } else {
+        Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      }
+  
+      http.end();
+    }
     #endif
 
     valor++;
-    
-    //delay(20000); //aguardar 20s (tempo mínimo entre transmissoes AU915 - se puder ser um intervalo maior deve-se adotar...) para a próxima transmissão
-    //Ao invés de delay() o ideal é lidar com interrupção de tempo, watchdogs e recurso de millis(), pois o delay() interrompe o microcontrolador de fazer outra coisa (ex: realizar coleta de valores dos sensores...)
   }
+
+  if(digitalRead(botao) == HIGH){
+    a = 'g';
+  }
+
+  if(digitalRead(site) == HIGH && a == 'g'){
+    a = 'y';
+  } else if (digitalRead(site) == HIGH && a == 'y'){
+    a = 'r';
+  }
+
+  if(a == 'g'){
+        digitalWrite(g_pin, HIGH);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, LOW);
+  }else if(a == 'y'){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, HIGH);
+        digitalWrite(r_pin, LOW);
+  }else if(a == 'r'){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, HIGH);
+  }
+  
 }
   
