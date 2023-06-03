@@ -1,4 +1,8 @@
 #include <ESP8266HTTPClient.h>
+#include <ESP8266WebServer.h>
+
+//#include <HTTPClientESP32.h>
+
 
 #include <SoftwareSerial.h>
 #include "ESP8266TimerInterrupt.h"
@@ -16,6 +20,7 @@ const char *STATUS_AT_JOINED = "JOINED";
 const char *STATUS_AT_VER_JOINED = "1";
 const char *STATUS_AT_VER_NOTJOINED = "0";
 const char *STATUS_AT_ERROR = "AT_ERROR";
+char a = 'g';
 
 SoftwareSerial serialAT;
 
@@ -24,8 +29,12 @@ SoftwareSerial serialAT;
 
 #ifdef WIFI
   #include <ESP8266WiFi.h>
-  #define WIFI_NAME "Donald Trump"
-  #define WIFI_PASS "002393929"
+  #define WIFI_NAME "Baidu_Avast"
+  #define WIFI_PASS "lasanhademorango10"
+  
+  
+
+  
 #endif
 //iot.coenc.ap.utfpr.edu.br
 
@@ -166,7 +175,6 @@ unsigned long lastMillis;
 #define y_pin 12
 #define r_pin 13
 #define botao 16
-#define site 5 //debug, vai recolher a informação do site
 
 
 void setup() {
@@ -177,7 +185,6 @@ void setup() {
   pinMode(y_pin,OUTPUT);
   pinMode(r_pin,OUTPUT);
   pinMode(botao,INPUT);
-  pinMode(site,INPUT);
 
   if (ITimer.attachInterruptInterval(TIMER_INTERVAL_MS * 1000, TimerHandler)) {
     lastMillis = millis();
@@ -218,12 +225,46 @@ void setup() {
 
     Serial.print("Connected, IP address: ");
     Serial.println(WiFi.localIP());
+
+    if(WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    HTTPClient http;
+
+    Serial.print("[HTTP] begin...\n");
+    // configure the server and endpoint URL
+    http.begin(client, "https://web-production-cc72.up.railway.app/maquinas"); 
+
+    Serial.print("[HTTP] POST...\n");
+    // envie a requisição HTTP POST com os dados necessários
+    http.addHeader("Content-Type", "application/json");
+    int httpCode = http.POST(String("{\"led_status\":\"") + a + "\"}");  
+
+    // verifique a resposta do servidor
+    if (httpCode > 0) {
+      Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+
+      if (httpCode == HTTP_CODE_OK) {
+        String response = http.getString();
+        Serial.println("Server response: " + response);
+        // faça o processamento necessário com a resposta do servidor
+      }
+    } else {
+      Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
+  }
   #endif
 
   valor = 0;
 }
 
-char a = 'g';
+
+
+ESP8266WebServer server(80);
+
+
+int httpCode = 0;
 
 void loop() {        
   if(estado == 1){
@@ -236,6 +277,28 @@ void loop() {
   
     Serial.print("Valor Medido: ");
     Serial.println(valor);
+
+
+  if(digitalRead(botao) == HIGH && a == 'y'){
+    a = 'g';
+  }else if(digitalRead(botao) == HIGH && a == 'g'){
+    a = 'y';
+  }
+ 
+  if(a == 'g'){
+        digitalWrite(g_pin, HIGH);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, LOW);
+  }else if(a == 'y'){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, HIGH);
+        digitalWrite(r_pin, LOW);
+  }else if(a == 'r'){
+        digitalWrite(g_pin, LOW);
+        digitalWrite(y_pin, LOW);
+        digitalWrite(r_pin, HIGH);
+  }
+
 
     #ifdef LORA
       enviarcomandoAT(comando_send_com_valor,strlen(comando_send_com_valor)); //enviar valor via Uplink...  
@@ -250,23 +313,19 @@ void loop() {
   
       Serial.print("[HTTP] begin...\n");
       // configure traged server and url
-      http.begin(client, "https://projeto-toyota.vercel.app/dashboardmaquinas");  // HTTP
+      //http.begin(client, "https://projeto-toyota.vercel.app/dashboardmaquinas");  // HTTP
+      http.begin(client, "http://192.168.0.106:3002/changeStatusMaquina");
       http.addHeader("Content-Type", "application/json");
-  
+      Serial.print(a);
       Serial.print("[HTTP] POST...\n");
       // start connection and send HTTP header and body
-      switch(a){
-        case 'g':
-          int httpCode = http.POST("{\"status\": \"operando\"}");
-        break;
-        case 'y':
-          int httpCode = http.POST("{\"status\": \"inativo\"}");
-        break;
-        case 'r':
-          int httpCode = http.POST("{\"status\": \"parado\"}");
-        break;
-      }
-        
+      if(a == 'g')
+          httpCode = http.POST("{\"codigo\": \"123\", \"status\": \"operando\"}");
+      else if(a == 'y')
+          httpCode = http.POST("{\"codigo\": \"123\",\"status\": \"inativo\"}");
+      else if(a == 'r')
+          httpCode = http.POST("{\"codigo\": \"123\",\"status\": \"parado\"}");
+       
       //retornar o que enviou///////////
       //enviar apenas json
       // httpCode will be negative on error
@@ -290,30 +349,6 @@ void loop() {
     #endif
 
     valor++;
-  }
-
-  if(digitalRead(botao) == HIGH){
-    a = 'g';
-  }
-
-  if(digitalRead(site) == HIGH && a == 'g'){
-    a = 'y';
-  } else if (digitalRead(site) == HIGH && a == 'y'){
-    a = 'r';
-  }
-
-  if(a == 'g'){
-        digitalWrite(g_pin, HIGH);
-        digitalWrite(y_pin, LOW);
-        digitalWrite(r_pin, LOW);
-  }else if(a == 'y'){
-        digitalWrite(g_pin, LOW);
-        digitalWrite(y_pin, HIGH);
-        digitalWrite(r_pin, LOW);
-  }else if(a == 'r'){
-        digitalWrite(g_pin, LOW);
-        digitalWrite(y_pin, LOW);
-        digitalWrite(r_pin, HIGH);
   }
   
 }
